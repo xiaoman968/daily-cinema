@@ -34,6 +34,12 @@ npm run deploy:api
 
 将部署输出的Worker HTTPS地址填入`site/config.js`的`apiBase`。不要填写任何密钥。设置百炼用量预算/提醒，按真实部署环境确认模型与Workers额度。
 
+### 当前线上入口
+
+GitHub Pages前端调用`https://daily-cinema-bridge-xiaoman968.pages.dev`，通过Cloudflare服务绑定转发到`daily-cinema-api`。这样当前网络无需直接访问`workers.dev`。中转不保存密钥，模型密钥仍仅在分析Worker中。
+
+中转部署配置在`bridge/`：进入该目录运行`npx wrangler pages deploy public --project-name daily-cinema-bridge-xiaoman968 --branch main`。这是已有的Pages项目，后续部署无需再次创建项目。实际可达性仍以用户网络为准。
+
 ## GitHub Pages部署
 
 在GitHub新建公开仓库`daily-cinema`。本项目目录作为仓库根目录，提交全部代码，主分支为`main`。仓库Settings → Pages → Build and deployment选择GitHub Actions。
