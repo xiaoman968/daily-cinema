@@ -27,7 +27,19 @@ async function show(data,isDemo){report=structuredClone(data);demo=isDemo;$('#re
  const title=el('h3','五官亮点解读','section-title');title.append(el('small','主观视觉印象 / 非精密测量'));root.append(title);
  for(const f of report.features){const block=el('article','','feature'),heading=el('div','','feature-heading'),score=el('strong',f.score.toFixed(1));score.append(el('small',' / 10'));heading.append(el('h4',f.name),score);const bar=el('div','','bar'),fill=el('span');fill.style.width=`${f.score*10}%`;bar.append(fill);block.append(heading,bar,el('p',f.observation),el('p',`✧ 你的亮点：${f.highlight}`,'highlight'));root.append(block);}
  root.append(el('h3','把你的优势，变成下一次灵感','section-title'));for(const g of report.guides){const block=el('article','','guide');block.append(el('span',g.category,'guide-category'),el('h4',g.title),el('p',g.why),el('p',g.steps,'steps'));root.append(block);}
- root.append(el('h3','你的妆造灵感色卡','section-title'));const palette=el('div','','palette');for(const c of report.palette){const item=el('div'),swatch=el('span','','swatch');swatch.style.background=c.color;item.append(swatch,el('small',c.name));palette.append(item);}root.append(palette,el('p',`本次照片说明：${report.photoNote}`,'report-note'));await draw();$('#result').scrollIntoView({behavior:'smooth'});
+ root.append(el('h3','你的妆造灵感色卡','section-title'));const palette=el('div','','palette');for(const c of report.palette){const item=el('div'),swatch=el('span','','swatch');swatch.style.background=c.color;item.append(swatch,el('small',c.name));palette.append(item);}root.append(palette,el('p',`本次照片说明：${report.photoNote}`,'report-note'));
+ const conclusion=el('section','','style-conclusion');conclusion.id='style-conclusion';conclusion.setAttribute('aria-label','你的风格总结');
+ conclusion.append(el('p','THE TAKEAWAY / 你的风格总结','conclusion-eyebrow'),el('p','综合这张照片，你更偏向','conclusion-lead'),el('h3',report.style),el('p',report.headline,'conclusion-headline'));
+ const finalTags=el('div','','tags');report.tags.forEach(t=>finalTags.append(el('span',t)));conclusion.append(finalTags);
+ const strengths=[...report.features].sort((a,b)=>b.score-a.score).slice(0,2);
+ const highlights=el('div','','conclusion-highlights');highlights.append(el('h4','最值得保留的亮点'));
+ strengths.forEach(f=>{const p=el('p');p.append(el('strong',`${f.name} · `),document.createTextNode(f.highlight));highlights.append(p);});conclusion.append(highlights);
+ const directions=el('div','','conclusion-directions');directions.append(el('h4','你的妆造方向，记住这三点'));
+ report.guides.filter(g=>g.category!=='上镜').slice(0,3).forEach(g=>{const item=el('div','','conclusion-direction');item.append(el('span',g.category),el('strong',g.title));directions.append(item);});conclusion.append(directions);
+ conclusion.append(el('p',demo?'示例风格总结，仅展示报告形式。':'这是此张照片呈现的风格倾向，可以作为尝试方向，不是固定标签。','conclusion-note'));
+ const save=el('button','把我的风格存成卡片 ↓','button primary');save.type='button';save.onclick=()=>$('#save').click();conclusion.append(save);root.append(conclusion);
+ const jump=el('button','直接看我的风格总结 ↓','link conclusion-jump');jump.type='button';jump.onclick=()=>conclusion.scrollIntoView({behavior:'smooth',block:'center'});intro.append(jump);
+ await draw();$('#result').scrollIntoView({behavior:'smooth'});
 }
 const showDemo=()=>show(beautyDemo,true).catch(()=>message('示例加载失败，请刷新重试。',true));$('#demo').onclick=showDemo;$('#demo-hero').onclick=showDemo;$('#again').onclick=()=>$('#studio').scrollIntoView({behavior:'smooth'});
 const themes={lilac:{bg:'#F1E9F8',ink:'#604278',accent:'#9670B3',card:'#FFFFFF'},rose:{bg:'#FAE8EF',ink:'#8A4C68',accent:'#BE819B',card:'#FFFAFC'},cream:{bg:'#F4EDE0',ink:'#776046',accent:'#B09871',card:'#FFFCF5'}};
