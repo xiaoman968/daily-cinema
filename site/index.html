@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f4ec"><meta name="description" content="上传生活照片，让 AI 发现你的日常美学，生成专属电影海报。">
+  <title>日常有戏 · 把日子拍成自己的电影</title>
+  <link rel="stylesheet" href="styles.css"><script src="config.js" defer></script><script src="app.js" type="module"></script>
+</head>
+<body>
+<header class="nav"><a class="brand" href="#"><span class="brand-icon">日</span>日常有戏<span class="brand-en">DAILY CINEMA</span></a><a href="#how" class="nav-link">这部电影，怎么拍？ <span>↗</span></a></header>
+<main>
+<section class="hero">
+  <div class="hero-copy"><p class="eyebrow"><span class="live-dot"></span> 每一个普通日子，都有主角光环</p>
+  <h1>你的生活，<br>本来就是一部<span class="title-accent">好电影<svg viewBox="0 0 350 20" aria-hidden="true"><path d="M5 12 Q170 -5 343 9 M45 18 Q190 3 320 15"/></svg></span>。</h1>
+  <p class="hero-description">那些随手拍下的光、路过的街角、认真吃的一顿饭。<br>让 AI 看见你的生活美学，为你写一部专属电影。</p>
+  <div class="hero-actions"><a class="button primary" href="#studio">开启我的电影 <span>↗</span></a><button class="text-button" id="demo">先看一份样片 <span>▶</span></button></div>
+  <div class="hero-footnote"><span>✦ 看见细节的美</span><span>✦ 专属电影海报</span><span>✦ 不给生活打分</span></div></div>
+  <div class="hero-art" aria-label="日常电影海报插画">
+    <div class="art-note">生活没有废片。<br>只是还没配上片名。</div>
+    <div class="poster-teaser"><div class="teaser-top">A FILM BY YOU <span>生活美学放映室</span></div>
+    <div class="illustration"><div class="sun"></div><div class="window-frame"></div><div class="landscape mountain-one"></div><div class="landscape mountain-two"></div><div class="table"></div><div class="vase"><i></i><b></b><em></em></div><div class="cup"></div><div class="book"></div><div class="sunlight"></div></div>
+    <div class="teaser-caption"><small>日常有戏 · 私人放映</small><h2>把日子过成晴天</h2><p>那些不起眼的瞬间，也在悄悄发光。</p><div>DIRECTED BY YOU <span>✦</span> STARRING YOUR EVERYDAY</div></div></div>
+    <div class="ticket"><span>YOUR LIFE<br>YOUR CINEMA</span><strong>入场券</strong><small>SEAT 01 · 永远为你留座</small></div>
+    <span class="art-star">✳</span>
+  </div>
+</section>
+<div class="marquee" aria-hidden="true"><span>你的镜头，有自己的偏爱</span>✳<span>平凡日常，值得一场首映</span>✳<span>把生活的主角，还给自己</span>✳<span>YOUR EVERYDAY IS A FILM</span></div>
+<section class="how section" id="how"><div class="section-heading"><div><p class="eyebrow">THE MAKING OF YOUR FILM</p><h2>三步，让日常上映。</h2></div><p>没有标准答案，只有属于你的生活切片。</p></div><div class="steps"><article><span>01 / 取景</span><h3>挑几张喜欢的日常</h3><p>窗边的光、街角的店、今天的晚餐。<br>3—9 张，越日常，越有你的风格。</p></article><article><span>02 / 发现</span><h3>看见你独有的美学</h3><p>从色彩、光线、构图和生活细节，<br>找到镜头背后那些温柔的偏爱。</p></article><article><span>03 / 上映</span><h3>收下专属电影海报</h3><p>一个片名，一段导演评语。<br>给自己的生活，办一场小小首映。</p></article></div></section>
+<section class="studio section" id="studio"><div class="studio-header"><p class="eyebrow">NOW IT’S YOUR TURN</p><h2>把镜头，交给你的日常。</h2><p>不必精修，不必完美。你喜欢的瞬间就很好。</p></div>
+  <div class="upload-zone" id="dropzone"><div class="upload-icon">＋</div><h3>选几张照片，开启你的电影</h3><p>点击选择或拖入照片 · 3—9 张 · JPG / PNG / WebP · 每张不超过 15 MB</p><label class="button secondary" for="photos">选择生活照片 <span>↗</span></label><input type="file" id="photos" accept="image/jpeg,image/png,image/webp" multiple class="sr-only"></div>
+  <div id="photo-list" class="photo-list" aria-live="polite"></div>
+  <div class="form-row"><label>这部电影的主角<input id="nickname" maxlength="16" placeholder="你的昵称（选填）"></label><label>最近的生活底色<select id="mood"><option>让照片自己说话</option><option>平淡里有小确幸</option><option>正在慢慢找回自己</option><option>想留住这段好时光</option><option>忙碌，也认真生活</option></select></label></div>
+  <label class="consent"><input type="checkbox" id="consent">我同意将所选照片发送至 AI 服务分析，已确认照片中的人同意使用。照片不保存在本站服务器。</label>
+  <div class="submit-row"><p id="connection-note"></p><button id="analyze" class="button primary">生成我的电影 <span>✦</span></button></div><p id="status" class="status" role="status" aria-live="polite"></p>
+</section>
+<section id="result" class="result section" hidden aria-label="你的生活电影报告"><div class="section-heading"><div><p class="eyebrow" id="result-label">YOUR PRIVATE PREMIERE</p><h2>你的生活，正在上映。</h2></div><button id="start-over" class="text-button">再拍一部 ↗</button></div><div class="result-layout"><div><canvas id="poster" width="1080" height="1440" aria-label="专属电影海报"></canvas><div class="poster-actions"><button id="save-poster" class="button primary">保存海报 ↓</button><button id="share" class="button secondary">分享我的电影 ↗</button></div><p class="poster-hint">长按分享心情：原来我的日常，在别人眼里是这样。</p></div><div id="report" class="report"></div></div></section>
+<section class="closing"><span>✳</span><h2>你不需要活得像别人。<br>你的日常，就很值得被看见。</h2><p>日常有戏 / A LITTLE SPOTLIGHT ON YOUR EVERYDAY</p></section>
+</main>
+<footer><a class="brand" href="#">日常有戏</a><p>AI 创意解读，仅供娱乐与审美灵感。结果不代表人格判断或心理评估。</p><button id="privacy" class="text-button">照片与隐私</button></footer>
+<dialog id="privacy-dialog"><h2>照片与隐私</h2><p>照片在浏览器中压缩，正式分析时通过本站 API 后端发送至阿里云百炼。本站代码不将照片或报告写入数据库，也不会公开生成的海报；第三方的处理规则以其服务协议为准。</p><p>选择“先看一份样片”不上传你的照片。海报在浏览器本地生成，只有你主动分享后，别人才能看到。关闭或刷新页面会清除当前报告与照片。</p><button id="close-privacy" class="button primary">知道了</button></dialog>
+</body></html>

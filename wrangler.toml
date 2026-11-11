@@ -1,0 +1,13 @@
+name = "daily-cinema-api"
+main = "worker/index.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+QWEN_MODEL = "qwen3-vl-plus"
+# Change to your actual GitHub Pages origin (no repository path or trailing slash).
+ALLOWED_ORIGINS = "http://localhost:4173,http://127.0.0.1:4173"
+
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 3, period = 60 }
