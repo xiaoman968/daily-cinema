@@ -1,142 +1,51 @@
-import { demoReport } from './demo.js';
-import { validateReport } from './report-schema.js';
-const $ = s => document.querySelector(s);
-const photos = [];
-let currentReport, isDemo = false, busy = false;
-const apiBase = (window.APP_CONFIG?.apiBase || '').replace(/\/$/, '');
-$('#connection-note').textContent = apiBase ? '照片在本地压缩后分析 · 预计需要 20—60 秒' : '正式分析待接通 · 可以先点上方「先看一份样片」';
-function status(message, error = false) { $('#status').textContent = message; $('#status').classList.toggle('error', error); }
-function setBusy(value) {
-  busy = value;
-  for (const el of document.querySelectorAll('#studio button, #studio input, #studio select, #demo, #start-over')) el.disabled = value;
-  $('#analyze').textContent = value ? '正在发现你的生活美学…' : '生成我的电影 ✦';
+import {validateBeauty} from './beauty-schema.js';
+import {beautyDemo} from './beauty-demo.js';
+const $=s=>document.querySelector(s);
+let photo=null,report=null,demo=false,busy=false,theme='lilac',progressTimer;
+const apiBase=(window.APP_CONFIG?.apiBase||'').replace(/\/$/,'');
+function message(text,error=false){$('#status').textContent=text;$('#status').classList.toggle('error',error);}
+function lock(value){busy=value;for(const el of document.querySelectorAll('#studio button,#studio input,#studio select,#demo,#demo-hero,#again'))el.disabled=value;$('#analyze').textContent=value?'正在认真发现你的好看…':'生成我的颜值报告 ✦';}
+async function choose(file){
+ if(!file||busy)return;
+ if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024)return message('请选择15 MB以内的 JPG、PNG 或 WebP 照片。',true);
+ lock(true);const url=URL.createObjectURL(file);
+ try{const img=new Image();img.src=url;await img.decode();if(Math.min(img.width,img.height)<160)throw Error('照片太小了，请选择更清晰的人像。');const scale=Math.min(1,1280/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);let data=c.toDataURL('image/jpeg',.82);if(data.length>1_000_000)data=c.toDataURL('image/jpeg',.55);if(data.length>1_100_000)throw Error('压缩后照片仍过大，请换一张较小的照片。');photo=data;$('#preview').src=data;$('#preview').hidden=false;$('#upload-empty').hidden=true;$('#remove').hidden=false;$('#choose-label').textContent='换一张照片 ↗';message('照片已准备好。勾选授权后，就可以开始测评。');}
+ catch(e){message(e.message||'照片读取失败，请换一张。',true);}finally{URL.revokeObjectURL(url);lock(false);$('#photos').value='';$('#camera').value='';}
 }
-async function compress(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image(); img.src = url; await img.decode();
-    const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
-    const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(img.width * scale)); canvas.height = Math.max(1, Math.round(img.height * scale));
-    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    let data = canvas.toDataURL('image/jpeg', .8);
-    if (data.length > 1_000_000) data = canvas.toDataURL('image/jpeg', .55);
-    if (data.length > 1_100_000) throw Error('这张照片压缩后仍过大，请换一张较小的照片。');
-    return { data, name: file.name };
-  } finally { URL.revokeObjectURL(url); }
-}
-function renderPhotos() {
-  $('#photo-list').replaceChildren();
-  photos.forEach((photo, index) => {
-    const item = document.createElement('div'); item.className = 'photo-item';
-    const img = document.createElement('img'); img.src = photo.data; img.alt = `第 ${index + 1} 张：${photo.name}`;
-    const button = document.createElement('button'); button.textContent = '×'; button.disabled = busy; button.setAttribute('aria-label', `删除第 ${index + 1} 张照片`);
-    button.onclick = () => { photos.splice(index, 1); renderPhotos(); };
-    item.append(img, button); $('#photo-list').append(item);
-  });
-}
-async function addFiles(files) {
-  if (busy) return;
-  setBusy(true); let rejected = 0;
-  try {
-    for (const file of files) {
-      if (photos.length >= 9) { rejected++; continue; }
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 15 * 1024 * 1024) { rejected++; continue; }
-      try { photos.push(await compress(file)); } catch { rejected++; }
-    }
-    status(`已选择 ${photos.length} / 9 张照片。${rejected ? `有 ${rejected} 张未添加（超出数量、格式不支持、图片损坏或文件过大）。` : ''}`, rejected > 0);
-  } finally { setBusy(false); renderPhotos(); $('#photos').value = ''; }
-}
-$('#photos').onchange = e => addFiles([...e.target.files]);
-const zone = $('#dropzone');
-zone.ondragover = e => { e.preventDefault(); zone.classList.add('dragging'); };
-zone.ondragleave = () => zone.classList.remove('dragging');
-zone.ondrop = e => { e.preventDefault(); zone.classList.remove('dragging'); addFiles([...e.dataTransfer.files]); };
-$('#analyze').onclick = async () => {
-  if (!apiBase) return status('正式分析尚未接通。请先体验样片，部署者配置 API 地址后即可使用。', true);
-  if (photos.length < 3) return status('请先选择 3—9 张生活照片。', true);
-  if (!$('#consent').checked) return status('请先阅读并勾选照片分析授权。', true);
-  setBusy(true); status('正在从色彩、光线、构图和细节，寻找你的专属电影…');
-  try {
-    const response = await fetch(`${apiBase}/api/analyze`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({images:photos.map(p => p.data), mood:$('#mood').value}), signal:AbortSignal.timeout(100_000) });
-    const data = await response.json();
-    if (!response.ok) throw Error(data.error || '分析暂时未完成，请稍后重试。');
-    if (!validateReport(data, photos.length)) throw Error('报告格式不完整，请重新生成。');
-    await showReport(data, false); status('你的电影已上映。可以保存海报，也可以继续拍下一部。');
-  } catch (error) { status(error.name === 'TimeoutError' ? '这次分析用时较长，请稍后重试。' : error.message || '网络连接失败，请稍后重试。', true); }
-  finally { setBusy(false); renderPhotos(); }
+$('#photos').onchange=e=>choose(e.target.files[0]);$('#camera').onchange=e=>choose(e.target.files[0]);$('#camera-button').onclick=()=>$('#camera').click();
+$('#upload-empty').onclick=()=>{if(!busy)$('#photos').click();};
+$('#remove').onclick=()=>{photo=null;$('#preview').removeAttribute('src');$('#preview').hidden=true;$('#upload-empty').hidden=false;$('#remove').hidden=true;$('#choose-label').textContent='选择一张人像 ＋';message('照片已移除。');};
+$('#dropzone').ondragover=e=>{e.preventDefault();if(!busy)$('#dropzone').classList.add('dragging');};$('#dropzone').ondragleave=()=>$('#dropzone').classList.remove('dragging');$('#dropzone').ondrop=e=>{e.preventDefault();$('#dropzone').classList.remove('dragging');choose(e.dataTransfer.files[0]);};
+$('#analyze').onclick=async()=>{
+ if(!photo)return message('请先选择一张清晰的单人人像。',true);if(!$('#consent').checked)return message('请先阅读并勾选照片分析授权。',true);if(!apiBase)return message('AI服务尚未接通，可以先看示例报告。',true);
+ lock(true);$('#progress').hidden=false;message('正在分析。通常需要20—60秒，请保留此页面。');let i=0;const stages=['正在发现你的五官亮点…','正在寻找适合你的颜系标签…','正在整理专属妆发灵感…','正在生成完整报告，请再等一会儿…'];$('#progress-text').textContent=stages[0];progressTimer=setInterval(()=>{$('#progress-text').textContent=stages[Math.min(++i,3)];},14000);
+ try{const res=await fetch(`${apiBase}/api/beauty`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({images:[photo],preference:$('#preference').value}),signal:AbortSignal.timeout(100000)});let data;try{data=await res.json();}catch{throw Error('服务暂未返回完整结果，请稍后重试。');}if(!res.ok)throw Error(data.error||'分析暂时未完成，请重试。');if(!validateBeauty(data))throw Error('报告格式不完整，请重新生成。');if(data.kind==='unusable')throw Error(data.reason);await show(data,false);message('你的专属颜值报告已生成。分享卡可以换色，也可以隐藏照片。');}
+ catch(e){message(e.name==='TimeoutError'?'这次分析用时较长，请稍后重试。':e.message||'网络连接失败，请稍后重试。',true);}finally{clearInterval(progressTimer);$('#progress').hidden=true;lock(false);}
 };
-function element(tag, text, className) { const el = document.createElement(tag); el.textContent = text; if (className) el.className = className; return el; }
-async function showReport(report, demo) {
-  currentReport = report; isDemo = demo;
-  $('#result-label').textContent = demo ? 'DEMO / 创意样片 · 非上传照片分析' : 'YOUR PRIVATE PREMIERE / 专属首映';
-  const container = $('#report'); container.replaceChildren();
-  container.append(element('p', `「${report.archetype}」`, 'report-intro'));
-  const tags = element('div', '', 'tags'); report.tags.forEach(t => tags.append(element('span', t))); container.append(tags);
-  const intro = element('article', '', 'report-block'); intro.append(element('h3', '导演评语'), element('p', report.review)); container.append(intro);
-  for (const observation of report.observations) {
-    const block = element('article', '', 'report-block'); block.append(element('h3', observation.dimension), element('strong', observation.title), element('p', observation.evidence, 'evidence'), element('p', observation.interpretation), element('p', `${demo ? '样片插画' : '照片'} ${observation.photos.join('、')}`, 'evidence')); container.append(block);
-  }
-  const palette = element('div', '', 'palette'); report.palette.forEach(color => { const swatch = element('span', '', 'swatch'); swatch.style.backgroundColor = color; swatch.title = color; palette.append(swatch); });
-  const colors = element('article', '', 'report-block'); colors.append(element('h3', '你的电影调色盘'), palette); container.append(colors);
-  const tips = element('article', '', 'report-block'); tips.append(element('h3', '下一幕，可以这样拍'));
-  report.suggestions.forEach(s => tips.append(element('strong', s.title), element('p', s.detail))); container.append(tips);
-  $('#result').hidden = false; await document.fonts.ready; await drawPoster(); $('#result').scrollIntoView({behavior:'smooth'});
+function el(tag,text='',className){const n=document.createElement(tag);n.textContent=text;if(className)n.className=className;return n;}
+async function show(data,isDemo){report=structuredClone(data);demo=isDemo;$('#result').hidden=false;$('#result-label').textContent=demo?'DEMO / 示例报告 · 非真人测评':'YOUR PERSONAL BEAUTY FILE / 专属颜值档案';$('#share-status').textContent='';const root=$('#report');root.replaceChildren();const intro=el('div','','report-intro');intro.append(el('small',demo?'示例趣味指数 8.8 / 10':`颜值趣味指数 ${report.score.toFixed(1)} / 10`),el('h3',report.style),el('p',report.headline));const tags=el('div','','tags');report.tags.forEach(t=>tags.append(el('span',t)));intro.append(tags,el('p',report.summary));root.append(intro);
+ const title=el('h3','五官亮点解读','section-title');title.append(el('small','主观视觉印象 / 非精密测量'));root.append(title);
+ for(const f of report.features){const block=el('article','','feature'),heading=el('div','','feature-heading'),score=el('strong',f.score.toFixed(1));score.append(el('small',' / 10'));heading.append(el('h4',f.name),score);const bar=el('div','','bar'),fill=el('span');fill.style.width=`${f.score*10}%`;bar.append(fill);block.append(heading,bar,el('p',f.observation),el('p',`✧ 你的亮点：${f.highlight}`,'highlight'));root.append(block);}
+ root.append(el('h3','把你的优势，变成下一次灵感','section-title'));for(const g of report.guides){const block=el('article','','guide');block.append(el('span',g.category,'guide-category'),el('h4',g.title),el('p',g.why),el('p',g.steps,'steps'));root.append(block);}
+ root.append(el('h3','你的妆造灵感色卡','section-title'));const palette=el('div','','palette');for(const c of report.palette){const item=el('div'),swatch=el('span','','swatch');swatch.style.background=c.color;item.append(swatch,el('small',c.name));palette.append(item);}root.append(palette,el('p',`本次照片说明：${report.photoNote}`,'report-note'));await draw();$('#result').scrollIntoView({behavior:'smooth'});
 }
-$('#demo').onclick = () => showReport(demoReport, true).catch(() => status('样片绘制失败，请刷新页面后重试。', true));
-$('#start-over').onclick = () => $('#studio').scrollIntoView({behavior:'smooth'});
-function wrap(ctx, text, x, y, maxWidth, lineHeight, maxLines = 10) {
-  let line = '', lines = [];
-  for (const char of text) {
-    if (ctx.measureText(line + char).width > maxWidth && line) { lines.push(line); line = char; } else line += char;
-  }
-  if (line) lines.push(line);
-  lines = lines.slice(0, maxLines);
-  lines.forEach((value, i) => ctx.fillText(value, x, y + i * lineHeight));
-  return y + lines.length * lineHeight;
+const showDemo=()=>show(beautyDemo,true).catch(()=>message('示例加载失败，请刷新重试。',true));$('#demo').onclick=showDemo;$('#demo-hero').onclick=showDemo;$('#again').onclick=()=>$('#studio').scrollIntoView({behavior:'smooth'});
+const themes={lilac:{bg:'#F1E9F8',ink:'#604278',accent:'#9670B3',card:'#FFFFFF'},rose:{bg:'#FAE8EF',ink:'#8A4C68',accent:'#BE819B',card:'#FFFAFC'},cream:{bg:'#F4EDE0',ink:'#776046',accent:'#B09871',card:'#FFFCF5'}};
+function lines(ctx,text,x,y,width,height,max=3){let line='',list=[];for(const ch of text){if(ctx.measureText(line+ch).width>width&&line){list.push(line);line=ch;}else line+=ch;}if(line)list.push(line);list.slice(0,max).forEach((s,i)=>ctx.fillText(s,x,y+i*height));}
+function rounded(ctx,x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();}
+async function draw(){if(!report)return;const canvas=$('#poster'),ctx=canvas.getContext('2d'),t=themes[theme],r=report;const img=new Image();const withPhoto=$('#include-photo').checked;img.src=demo?'portrait.svg':photo;await img.decode();ctx.clearRect(0,0,1080,1440);ctx.fillStyle=t.bg;ctx.fillRect(0,0,1080,1440);ctx.fillStyle=t.ink;ctx.textAlign='left';ctx.font='bold 35px "Microsoft YaHei"';ctx.fillText('✳ 颜究所',65,86);ctx.textAlign='right';ctx.font='18px Arial';ctx.fillText(demo?'DEMO / 示例档案':'FACE MUSE / BEAUTY FILE',1015,80);rounded(ctx,50,120,980,1190,26,t.card);
+ if(withPhoto){ctx.save();ctx.beginPath();ctx.roundRect(78,148,924,532,16);ctx.clip();const ratio=Math.max(924/img.width,532/img.height),sw=924/ratio,sh=532/ratio;const sy=Math.max(0,Math.min((img.height-sh)*.3,img.height-sh));ctx.drawImage(img,(img.width-sw)/2,sy,sw,sh,78,148,924,532);ctx.restore();}
+ else{rounded(ctx,78,148,924,532,16,t.bg);ctx.textAlign='center';ctx.fillStyle=t.accent;ctx.font='150px serif';ctx.fillText('✧',540,365);ctx.font='30px "Microsoft YaHei"';ctx.fillText('好看，不止一种答案。',540,475);}
+ ctx.textAlign='left';ctx.fillStyle=t.accent;ctx.font='23px "Microsoft YaHei"';ctx.fillText(demo?'示例档案 · 非真人测评':`${($('#nickname').value.trim()||'我').slice(0,16)} 的颜值档案`,88,730);
+ ctx.fillStyle=t.ink;let size=45;ctx.font=`bold ${size}px "Microsoft YaHei"`;while(ctx.measureText(r.style).width>630&&size>25){ctx.font=`bold ${--size}px "Microsoft YaHei"`;}ctx.fillText(r.style,88,802);ctx.font='bold 100px Arial';ctx.textAlign='right';ctx.fillText(r.score.toFixed(1),987,800);ctx.font='18px "Microsoft YaHei"';ctx.fillText('趣味指数 / 10',981,839);
+ ctx.textAlign='left';ctx.font='26px "Microsoft YaHei"';lines(ctx,r.headline,88,890,890,40,2);
+ ctx.font='20px "Microsoft YaHei"';r.tags.forEach((tag,i)=>{rounded(ctx,88+i*300,971,280,49,24,t.bg);ctx.fillStyle=t.ink;ctx.textAlign='center';ctx.fillText(tag,228+i*300,1003);});
+ const top=[...r.features].sort((a,b)=>b.score-a.score).slice(0,3);ctx.textAlign='left';ctx.fillStyle=t.accent;ctx.font='19px "Microsoft YaHei"';ctx.fillText('我的高光时刻',88,1070);
+ top.forEach((f,i)=>{const y=1122+i*47;ctx.fillStyle=t.ink;ctx.font='22px "Microsoft YaHei"';ctx.fillText(f.name,88,y);rounded(ctx,275,y-14,555,7,4,t.bg);rounded(ctx,275,y-14,555*f.score/10,7,4,t.accent);ctx.textAlign='right';ctx.fillStyle=t.ink;ctx.font='22px Arial';ctx.fillText(f.score.toFixed(1),980,y);ctx.textAlign='left';});
+ ctx.textAlign='center';ctx.fillStyle=t.ink;ctx.font='23px "Microsoft YaHei"';lines(ctx,r.shareLine,540,1355,950,30,1);ctx.font='16px "Microsoft YaHei"';ctx.fillStyle=t.accent;ctx.fillText('AI 主观娱乐测评 · 不代表客观颜值或人群排名 · 颜究所',540,1408);
 }
-function cover(ctx, img, x, y, w, h) {
-  const ratio = Math.max(w / img.width, h / img.height), sw = w / ratio, sh = h / ratio;
-  ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, x, y, w, h);
-}
-async function drawPoster() {
-  const canvas = $('#poster'), ctx = canvas.getContext('2d'), r = currentReport;
-  ctx.fillStyle = '#f8f4e9'; ctx.fillRect(0, 0, 1080, 1440); ctx.fillStyle = '#293d30'; ctx.textAlign = 'left'; ctx.font = '20px Arial'; ctx.fillText('DAILY CINEMA / 日常有戏', 60, 65); ctx.textAlign = 'right'; ctx.fillText(isDemo ? '创意样片 · DEMO' : 'A FILM BY YOU', 1020, 65);
-  if (!isDemo) {
-    const source = photos.slice(0, 3).map(p => p.data);
-    const images = await Promise.all(source.map(src => { const img = new Image(); img.src = src; return img.decode().then(() => img); }));
-    cover(ctx, images[0], 60, 100, 960, 650);
-    for (let i = 1; i < images.length; i++) cover(ctx, images[i], 60 + (i - 1) * 488, 766, 472, 185);
-  } else {
-    ctx.save(); ctx.beginPath(); ctx.rect(60, 100, 960, 850); ctx.clip();
-    ctx.fillStyle = '#c5ceba'; ctx.fillRect(60, 100, 960, 850);
-    ctx.fillStyle = '#f1d6a1'; ctx.beginPath(); ctx.arc(805, 280, 100, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#99a888'; ctx.beginPath(); ctx.ellipse(420, 740, 580, 330, -.15, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#bca17a'; ctx.fillRect(60, 680, 960, 270);
-    ctx.fillStyle = '#eee6cd'; ctx.fillRect(340, 100, 22, 580); ctx.fillRect(60, 470, 960, 22);
-    ctx.fillStyle = '#f5ecd7'; ctx.beginPath(); ctx.roundRect(650, 690, 135, 130, [5,5,45,45]); ctx.fill(); ctx.strokeStyle = '#f5ecd7'; ctx.lineWidth = 18; ctx.beginPath(); ctx.arc(790, 735, 30, -.5 * Math.PI, .5 * Math.PI); ctx.stroke();
-    ctx.fillStyle = '#c78358'; ctx.beginPath(); ctx.roundRect(260, 640, 95, 170, [8,8,25,25]); ctx.fill(); ctx.strokeStyle = '#667b4b'; ctx.lineWidth = 7;
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(305, 650); ctx.lineTo(245 + i * 65, 400 - i * 25); ctx.stroke(); ctx.fillStyle = '#738455'; ctx.beginPath(); ctx.ellipse(245 + i * 65, 435 - i * 25, 42, 15, -.5 + i * .5, 0, Math.PI * 2); ctx.fill(); }
-    ctx.restore();
-  }
-  ctx.textAlign = 'center'; ctx.fillStyle = '#73806b'; ctx.font = '20px "Microsoft YaHei"'; ctx.fillText(isDemo ? '样片放映 · 非个人测评结果' : `${($('#nickname').value.trim() || '你').slice(0,16)} 的私人放映`, 540, 1005);
-  ctx.fillStyle = '#293d30'; let titleSize = 65; ctx.font = `600 ${titleSize}px "Noto Serif SC", SimSun, serif`;
-  while (ctx.measureText(r.title).width > 930 && titleSize > 32) { titleSize--; ctx.font = `600 ${titleSize}px "Noto Serif SC", SimSun, serif`; }
-  ctx.fillText(r.title, 540, 1100);
-  ctx.font = '25px "Microsoft YaHei"'; ctx.fillStyle = '#71806c'; wrap(ctx, r.subtitle, 540, 1170, 880, 37, 2);
-  ctx.font = '22px "Microsoft YaHei"'; ctx.fillText(r.tags.join('    /    '), 540, 1270);
-  ctx.strokeStyle = '#cdd2bf'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(60, 1320); ctx.lineTo(1020, 1320); ctx.stroke(); ctx.fillStyle = '#6b775f'; ctx.font = '20px "Microsoft YaHei"'; ctx.fillText(r.invitation, 540, 1362); ctx.font = '14px Arial'; ctx.fillText('AI 创意解读 · 生活没有标准答案 · 日常有戏', 540, 1404);
-}
-function posterBlob() { return new Promise((resolve, reject) => $('#poster').toBlob(blob => blob ? resolve(blob) : reject(Error('图片导出失败')), 'image/png')); }
-$('#save-poster').onclick = async () => {
-  try { const blob = await posterBlob(), url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `日常有戏-${currentReport.title}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 20_000); }
-  catch { status('保存失败，请尝试长按或右键海报保存图片。', true); }
-};
-$('#share').onclick = async () => {
-  try {
-    const file = new File([await posterBlob()], '我的生活电影.png', {type:'image/png'});
-    if (navigator.canShare?.({files:[file]})) await navigator.share({files:[file], title:currentReport.title, text:currentReport.invitation});
-    else { $('#save-poster').click(); status('海报已准备下载，保存后可以发给朋友。'); }
-  } catch (e) { if (e.name !== 'AbortError') status('当前浏览器未能直接分享，请使用「保存海报」。', true); }
-};
-$('#privacy').onclick = () => $('#privacy-dialog').showModal();
-$('#close-privacy').onclick = () => $('#privacy-dialog').close();
+$('#include-photo').onchange=()=>draw().catch(()=>{$('#share-status').textContent='绘制失败，请重试。';});document.querySelectorAll('[data-theme]').forEach(button=>button.onclick=()=>{theme=button.dataset.theme;document.querySelectorAll('[data-theme]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));draw().catch(()=>{$('#share-status').textContent='绘制失败，请重试。';});});
+const blob=()=>new Promise((resolve,reject)=>$('#poster').toBlob(b=>b?resolve(b):reject(Error('导出失败')),'image/png'));
+$('#save').onclick=async()=>{try{const url=URL.createObjectURL(await blob()),a=el('a');a.href=url;a.download=`颜究所-${report.style}${demo?'-示例':''}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),20000);$('#share-status').textContent='分享卡已准备下载，可以保存后发给朋友。';}catch{$('#share-status').textContent='保存失败，请长按或右键图片保存。';}};
+$('#share').onclick=async()=>{try{const file=new File([await blob()],'我的颜值档案.png',{type:'image/png'});if(navigator.canShare?.({files:[file]}))await navigator.share({files:[file],title:'我的颜值档案 · 颜究所',text:report.shareLine});else $('#save').click();}catch(e){if(e.name!=='AbortError')$('#share-status').textContent='当前浏览器无法直接分享，请保存分享卡。';}};
+$('#privacy').onclick=()=>$('#privacy-dialog').showModal();$('#close-privacy').onclick=()=>$('#privacy-dialog').close();

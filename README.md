@@ -1,4 +1,10 @@
-# 日常有戏 / Daily Cinema
+# 颜究所 / Face Muse
+
+当前产品已按用户提供的颜值测评参考升级为「颜究所」：一张人像生成主观颜值趣味分、五官亮点、颜系、妆发穿搭建议，以及三种配色、可隐藏照片的分享卡。新版结果结构见 [BEAUTY-DESIGN.md](BEAUTY-DESIGN.md)。线上地址沿用 https://xiaoman968.github.io/daily-cinema/ ，真实模型仍为`qwen3-vl-plus`，无需更换密钥。
+
+`site/`是新版前端；`/api/beauty`为新版接口。旧生活电影示例数据和`/api/analyze`仅为缓存兼容保留。下方为初版部署参考，部署命令及账号配置仍适用。
+
+## 初版部署参考
 
 上传生活照片，用 AI 发现日常美学，生成专属电影与分享海报。结果方案见 [DESIGN.md](DESIGN.md)。
 
